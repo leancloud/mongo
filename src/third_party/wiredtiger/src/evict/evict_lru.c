@@ -6,6 +6,12 @@
  * See the file LICENSE for redistribution information.
  */
 
+// HACK
+#include <sched.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+// END HACK
+
 #include "wt_internal.h"
 
 static int  __evict_clear_all_walks(WT_SESSION_IMPL *);
@@ -168,6 +174,13 @@ __evict_server(void *arg)
 	session = arg;
 	conn = S2C(session);
 	cache = conn->cache;
+
+    // HACK
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    CPU_SET(1, &set);
+    sched_setaffinity(syscall(SYS_gettid), sizeof(set), &set);
+    // END HACK
 
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
 		/* Evict pages from the cache as needed. */
@@ -666,6 +679,7 @@ __evict_request_walk_clear(WT_SESSION_IMPL *session)
  *	Clear the eviction walk points for all files a session is waiting on.
  */
 static int
+__attribute__ ((noinline))
 __evict_clear_all_walks(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;

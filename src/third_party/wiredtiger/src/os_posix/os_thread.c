@@ -25,6 +25,7 @@ __wt_thread_create(WT_SESSION_IMPL *session,
 	WT_RET_MSG(session, ret, "pthread_create");
 }
 
+
 /*
  * __wt_thread_join --
  *	Wait for a thread of control to exit.
