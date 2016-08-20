@@ -211,6 +211,8 @@ __conn_dhandle_get(WT_SESSION_IMPL *session,
 
 	dhandle->name_hash = __wt_hash_city64(name, strlen(name));
 	WT_ERR(__wt_strdup(session, name, &dhandle->name));
+    dhandle->name_embedded = *((uint32_t*)dhandle->name);
+
 	if (ckpt != NULL)
 		WT_ERR(__wt_strdup(session, ckpt, &dhandle->checkpoint));
 

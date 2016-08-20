@@ -38,8 +38,13 @@
  *	A handle for a generic named data source.
  */
 struct __wt_data_handle {
-	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
 	TAILQ_ENTRY(__wt_data_handle) q;
+	void *handle;			/* Generic handle */
+	const char *name;		/* Object name as a URI */
+	uint64_t name_hash;		/* Hash of name */
+	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
+	uint32_t name_embedded;		/* HACK: Object type, 4 bytes embedded, for cache! */
+	uint32_t _;		            /* HACK: align */
 	TAILQ_ENTRY(__wt_data_handle) hashq;
 
 	/*
@@ -51,13 +56,10 @@ struct __wt_data_handle {
 	int32_t	 session_inuse;		/* Sessions using this handle */
 	time_t	 timeofdeath;		/* Use count went to 0 */
 
-	uint64_t name_hash;		/* Hash of name */
-	const char *name;		/* Object name as a URI */
 	const char *checkpoint;		/* Checkpoint name (or NULL) */
 	const char **cfg;		/* Configuration information */
 
 	WT_DATA_SOURCE *dsrc;		/* Data source for this handle */
-	void *handle;			/* Generic handle */
 
 	/*
 	 * Data handles can be closed without holding the schema lock; threads

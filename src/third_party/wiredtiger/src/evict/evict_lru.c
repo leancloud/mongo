@@ -10,6 +10,7 @@
 #include <sched.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <sys/sdt.h>
 // END HACK
 
 #include "wt_internal.h"
@@ -688,10 +689,13 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	TAILQ_FOREACH(dhandle, &conn->dhqh, q)
-		if (WT_PREFIX_MATCH(dhandle->name, "file:"))
-			WT_WITH_DHANDLE(session,
-			    dhandle, WT_TRET(__evict_clear_walk(session)));
+	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
+        if(__builtin_expect(dhandle->name_embedded == 'elif' /* 'file' reversed */, 1)) {
+            WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session)));
+        } else {
+            DTRACE_PROBE(proton, dhandle_not_file);
+        }
+    }
 	return (ret);
 }
 
