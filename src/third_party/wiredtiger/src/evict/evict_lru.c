@@ -221,6 +221,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
  *	Starting point for an eviction thread.
  */
 int
+__attribute__((noinline))
 __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
 	WT_CACHE *cache;
@@ -297,6 +298,7 @@ err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
  *	Thread to evict pages from the cache.
  */
 static int
+__attribute__((noinline))
 __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
 	WT_CACHE *cache;
@@ -675,7 +677,7 @@ __evict_pass(WT_SESSION_IMPL *session)
  * __evict_clear_walk --
  *	Clear a single walk point.
  */
-static int
+static int __attribute__((noinline))
 __evict_clear_walk(WT_SESSION_IMPL *session, bool count_stat)
 {
 	WT_BTREE *btree;
@@ -712,6 +714,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool count_stat)
  *	Clear the eviction walk points for all files a session is waiting on.
  */
 static int
+__attribute__((noinline))
 __evict_clear_all_walks(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -720,10 +723,16 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	TAILQ_FOREACH(dhandle, &conn->dhqh, q)
+    int i = 0;
+
+    printf("begin __evict_clear_all_walks\n");
+	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
+        i++;
 		if (WT_PREFIX_MATCH(dhandle->name, "file:"))
 			WT_WITH_DHANDLE(session, dhandle,
 			    WT_TRET(__evict_clear_walk(session, true)));
+    }
+    printf("len(dhandle) = %d\n", i);
 	return (ret);
 }
 
@@ -1032,6 +1041,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
  *	Fill in the array by walking the next set of pages.
  */
 static int
+__attribute__((noinline))
 __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 {
 	WT_BTREE *btree;
@@ -1088,6 +1098,7 @@ retry:	while (slot < max_entries) {
 			}
 			WT_ERR(ret);
 			dhandle_locked = true;
+            printf("evict_walk: LOCKED\n");
 		}
 
 		if (dhandle == NULL) {
@@ -1159,6 +1170,7 @@ retry:	while (slot < max_entries) {
 		incr = true;
 		__wt_spin_unlock(session, &conn->dhandle_lock);
 		dhandle_locked = false;
+        printf("evict_walk: unlocked\n");
 
 		/*
 		 * Re-check the "no eviction" flag, used to enforce exclusive
