@@ -5,6 +5,7 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include <sys/sdt.h>
 
 #include "wt_internal.h"
 
@@ -1052,6 +1053,8 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	u_int max_entries, retries, slot, spins, start_slot, total_candidates;
 	bool dhandle_locked, incr;
 
+    DTRACE_PROBE(evict_walk, start);
+
 	conn = S2C(session);
 	cache = S2C(session)->cache;
 	btree = NULL;
@@ -1098,7 +1101,7 @@ retry:	while (slot < max_entries) {
 			}
 			WT_ERR(ret);
 			dhandle_locked = true;
-            printf("evict_walk: LOCKED\n");
+            DTRACE_PROBE(evict_walk, spin_locked);
 		}
 
 		if (dhandle == NULL) {
@@ -1128,34 +1131,44 @@ retry:	while (slot < max_entries) {
 
 		/* Ignore non-file handles, or handles that aren't open. */
 		if (!WT_PREFIX_MATCH(dhandle->name, "file:") ||
-		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+		    !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+            DTRACE_PROBE(evict_walk, non_file);
 			continue;
+        }
 
 		/* Skip files that don't allow eviction. */
 		btree = dhandle->handle;
-		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
+		if (F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
+            DTRACE_PROBE(evict_walk, no_eviction);
 			continue;
+        }
 
 		/*
 		 * Skip files that are checkpointing if we are only looking for
 		 * dirty pages.
 		 */
 		if (btree->checkpointing != WT_CKPT_OFF &&
-		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
+		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN)) {
+            DTRACE_PROBE(evict_walk, checkpointing);
 			continue;
+        }
 
 		/*
 		 * Skip files that are configured to stick in cache until we
 		 * become aggressive.
 		 */
 		if (btree->evict_priority != 0 &&
-		    !__wt_cache_aggressive(session))
+		    !__wt_cache_aggressive(session)) {
+            DTRACE_PROBE(evict_walk, non_aggresive);
 			continue;
+        }
 
 		/* Skip files if we have used all available hazard pointers. */
 		if (btree->evict_ref == NULL && session->nhazard >=
-		    conn->hazard_max - WT_MIN(conn->hazard_max / 2, 10))
+		    conn->hazard_max - WT_MIN(conn->hazard_max / 2, 10)) {
+            DTRACE_PROBE(evict_walk, hazard);
 			continue;
+        }
 
 		/*
 		 * If we are filling the queue, skip files that haven't been
@@ -1170,7 +1183,7 @@ retry:	while (slot < max_entries) {
 		incr = true;
 		__wt_spin_unlock(session, &conn->dhandle_lock);
 		dhandle_locked = false;
-        printf("evict_walk: unlocked\n");
+        DTRACE_PROBE(evict_walk, spin_unlocked);
 
 		/*
 		 * Re-check the "no eviction" flag, used to enforce exclusive
