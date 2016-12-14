@@ -520,6 +520,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
  *	Evict pages from memory.
  */
 static int
+__attribute__((noinline))
 __evict_pass(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
@@ -726,14 +727,13 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
 
     int i = 0;
 
-    printf("begin __evict_clear_all_walks\n");
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
         i++;
 		if (WT_PREFIX_MATCH(dhandle->name, "file:"))
 			WT_WITH_DHANDLE(session, dhandle,
 			    WT_TRET(__evict_clear_walk(session, true)));
     }
-    printf("len(dhandle) = %d\n", i);
+    DTRACE_PROBE1(evict_clear_all_walks, dhandle_count, i);
 	return (ret);
 }
 
@@ -1130,9 +1130,13 @@ retry:	while (slot < max_entries) {
 			break;
 
 		/* Ignore non-file handles, or handles that aren't open. */
-		if (!WT_PREFIX_MATCH(dhandle->name, "file:") ||
-		    !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+		if (!WT_PREFIX_MATCH(dhandle->name, "file:")) {
             DTRACE_PROBE(evict_walk, non_file);
+            continue;
+        }
+
+        if(!F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+            DTRACE_PROBE(evict_walk, open_not_set);
 			continue;
         }
 
@@ -1199,6 +1203,7 @@ retry:	while (slot < max_entries) {
 		    !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
 			if (!F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
 				cache->evict_file_next = dhandle;
+                DTRACE_PROBE(evict_walk, walk_file);
 				WT_WITH_DHANDLE(session, dhandle, ret =
 				    __evict_walk_file(session, queue,
 				    max_entries, &slot));
@@ -1225,6 +1230,7 @@ retry:	while (slot < max_entries) {
 	    (slot == queue->evict_entries || slot > start_slot)))) {
 		start_slot = slot;
 		++retries;
+        DTRACE_PROBE(evict_walk, retry);
 		goto retry;
 	}
 

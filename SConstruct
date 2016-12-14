@@ -1448,6 +1448,8 @@ if env.TargetOSIs('posix'):
                          "-fno-strict-aliasing",
                          "-ggdb",
                          "-pthread",
+                         "-fno-inline",
+                         "-fno-omit-frame-pointer",
                          "-Wall",
                          "-Wsign-compare",
                          "-Wno-unknown-pragmas",
