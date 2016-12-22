@@ -1077,6 +1077,8 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	    __wt_cache_pages_inuse(cache) : cache->pages_dirty_leaf);
 	max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
 
+    DTRACE_PROBE(evict_walk, begin_loop);
+
 retry:	while (slot < max_entries) {
 		/*
 		 * If another thread is waiting on the eviction server to clear
@@ -1365,8 +1367,10 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		 * the cache to be allocated slots.  Walk small trees 1% of the
 		 * time.
 		 */
-		if (__wt_random(&session->rnd) > UINT32_MAX / 100)
+		if (__wt_random(&session->rnd) > UINT32_MAX / 10) {
+            DTRACE_PROBE(evict_walk_file, random_return);
 			return (0);
+        }
 		target_pages = 10;
 	}
 
@@ -1408,6 +1412,8 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 	    evict < end && (ret == 0 || ret == WT_NOTFOUND);
 	    ret = __wt_tree_walk_count(
 	    session, &btree->evict_ref, &refs_walked, walk_flags)) {
+
+        DTRACE_PROBE(evict_walk_file, evict_loop);
 		/*
 		 * Check whether we're finding a good ratio of candidates vs
 		 * pages seen.  Some workloads create "deserts" in trees where
@@ -1418,12 +1424,17 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		    pages_seen > min_pages &&
 		    (pages_queued == 0 || (pages_seen / pages_queued) >
 		    (min_pages / target_pages));
-		if (give_up)
+
+		if (give_up) {
+            DTRACE_PROBE(evict_walk_file, give_up_desert);
 			break;
+        }
 
 		if ((ref = btree->evict_ref) == NULL) {
-			if (++restarts == 2)
+			if (++restarts == 2) {
+                DTRACE_PROBE(evict_walk_file, walks_started);
 				break;
+            }
 			WT_STAT_CONN_INCR(
 			    session, cache_eviction_walks_started);
 			continue;
@@ -1432,8 +1443,10 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		++pages_seen;
 
 		/* Ignore root pages entirely. */
-		if (__wt_ref_is_root(ref))
+		if (__wt_ref_is_root(ref)) {
+            DTRACE_PROBE(evict_walk_file, ignore_root_page);
 			continue;
+        }
 
 		page = ref->page;
 		modified = __wt_page_is_modified(page);
@@ -1443,8 +1456,10 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		 * Use the EVICT_LRU flag to avoid putting pages onto the list
 		 * multiple times.
 		 */
-		if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
+		if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU)) {
+            DTRACE_PROBE(evict_walk_file, already_in_queue);
 			continue;
+        }
 
 		/*
 		 * It's possible (but unlikely) to visit a page without a read
@@ -1462,30 +1477,39 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 			    session, cache_eviction_pages_queued_oldest);
 			if (__wt_page_evict_urgent(session, ref))
 				urgent_queued = true;
+            DTRACE_PROBE(evict_walk_file, no_longer_needed);
 			continue;
 		}
 
 		/* Pages that are empty or from dead trees are also good. */
-		if (__wt_page_is_empty(page) ||
-		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+		if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD)) {
+            DTRACE_PROBE(evict_walk_file, empty_page_or_dhandle_dead);
 			goto fast;
+        }
 
 		/* Skip clean pages if appropriate. */
-		if (!modified && !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
+		if (!modified && !F_ISSET(cache, WT_CACHE_EVICT_CLEAN)) {
+            DTRACE_PROBE(evict_walk_file, skip_evict_clean);
 			continue;
+        }
 
 		/* Skip dirty pages if appropriate. */
-		if (modified && !F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
+		if (modified && !F_ISSET(cache, WT_CACHE_EVICT_DIRTY)) {
+            DTRACE_PROBE(evict_walk_file, skip_evict_dirty);
 			continue;
+        }
 
 		/* Limit internal pages to 50% of the total. */
-		if (WT_PAGE_IS_INTERNAL(page) &&
-		    internal_pages >= (int)(evict - start) / 2)
+		if (WT_PAGE_IS_INTERNAL(page) && internal_pages >= (int)(evict - start) / 2) {
+            DTRACE_PROBE(evict_walk_file, limit_internal_page);
 			continue;
+        }
 
 		/* If eviction gets aggressive, anything else is fair game. */
-		if (__wt_cache_aggressive(session))
+		if (__wt_cache_aggressive(session)) {
+            DTRACE_PROBE(evict_walk_file, aggresive);
 			goto fast;
+        }
 
 		/*
 		 * If the oldest transaction hasn't changed since the last time
@@ -1497,16 +1521,24 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		mod = page->modify;
 		if (modified && txn_global->current != txn_global->oldest_id &&
 		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
-		    !__wt_txn_visible_all(session, mod->update_txn)))
+		    !__wt_txn_visible_all(session, mod->update_txn))) {
+            DTRACE_PROBE(evict_walk_file, oldest_transaction);
 			continue;
+        }
 
 fast:		/* If the page can't be evicted, give up. */
-		if (!__wt_page_can_evict(session, ref, NULL))
+		if (!__wt_page_can_evict(session, ref, NULL)) {
+            DTRACE_PROBE(evict_walk_file, cant_evict);
 			continue;
+        }
 
 		WT_ASSERT(session, evict->ref == NULL);
-		if (!__evict_push_candidate(session, queue, evict, ref))
+		if (!__evict_push_candidate(session, queue, evict, ref)) {
+            DTRACE_PROBE(evict_walk_file, cant_push_candidate);
 			continue;
+        } else {
+            DTRACE_PROBE(evict_walk_file, queued);
+        }
 		++evict;
 		++pages_queued;
 
@@ -1517,6 +1549,11 @@ fast:		/* If the page can't be evicted, give up. */
 		    "select: %p, size %" WT_SIZET_FMT,
 		    (void *)page, page->memory_footprint);
 	}
+
+    if(!(ret == 0 || ret == WT_NOTFOUND)) {
+        DTRACE_PROBE(evict_walk_file, walk_error);
+    }
+
 	WT_RET_NOTFOUND_OK(ret);
 
 	*slotp += (u_int)(evict - start);

@@ -31,6 +31,8 @@
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
 
+#include <sys/sdt.h>
+
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 
 #include "mongo/base/error_codes.h"
@@ -98,10 +100,14 @@ void WiredTigerSession::releaseCursor(uint64_t id, WT_CURSOR* cursor) {
     // across all of them (i.e., each cursor has 1/N chance of used for each operation).  We
     // would like to cache N cursors in that case, so any given cursor could go N**2 operations
     // in between use.
-    while (_cursorGen - _cursors.back()._gen > 10000) {
+    //
+    // Cache at most 200 cursors by Proton
+    //
+    while (_cursors.size() > 200 || _cursorGen - _cursors.back()._gen > 10000) {
         cursor = _cursors.back()._cursor;
         _cursors.pop_back();
         _cursorsCached--;
+        DTRACE_PROBE1(mongo_wt_session, cursor_cache_retire, _cursorsCached);
         invariantWTOK(cursor->close(cursor));
     }
 }

@@ -13,8 +13,8 @@
 #define	WT_EVICT_INT_SKEW  (1<<20)	/* Prefer leaf pages over internal
 					   pages by this many increments of the
 					   read generation. */
-#define	WT_EVICT_WALK_BASE	300	/* Pages tracked across file visits */
-#define	WT_EVICT_WALK_INCR	100	/* Pages added each walk */
+#define	WT_EVICT_WALK_BASE	1500	/* Pages tracked across file visits */
+#define	WT_EVICT_WALK_INCR	500	/* Pages added each walk */
 
 /*
  * WT_EVICT_ENTRY --
