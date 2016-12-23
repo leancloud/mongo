@@ -1,0 +1,16 @@
+global bt;
+
+probe process("/home/ubuntu/mongo/mongod").function("__session_open_cursor") {
+        uri = user_string($uri);
+        if(uri != "statistics:") {
+		bt[ubacktrace()]++;
+        }
+}
+
+probe end {
+       foreach(v- = i in bt) {
+           println(v);
+           print_stack(i);
+           println("------------------");
+       }
+}

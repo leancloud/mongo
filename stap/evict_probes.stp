@@ -1,0 +1,42 @@
+global counter;
+global counter2;
+global dhandles;
+
+probe process("/home/ubuntu/mongo/mongod").provider("evict_clear_all_walks").mark("dhandle_count") {
+    dhandles = $arg1;
+}
+
+probe process("/home/ubuntu/mongo/mongod").provider("evict_walk").mark("*") {
+    counter[$$name]++;
+}
+
+probe process("/home/ubuntu/mongo/mongod").function("__evict_walk_file") {
+    counter2["called"]++;
+}
+
+probe process("/home/ubuntu/mongo/mongod").provider("evict_walk_file").mark("*") {
+    counter2[$$name]++;
+}
+
+
+probe process("/home/ubuntu/mongo/mongod").provider("evict_walk").mark("begin_loop") {
+    printf("slot = %d\n", $slot);
+    printf("max_entries= %d\n", $max_entries);
+    // printf("total_candidates = %d\n", $total_candidates);
+    printf("&&&&&&&&&\n");
+}
+
+
+probe process("/home/ubuntu/mongo/mongod").function("__evict_walk").return {
+    foreach(c in counter2) {
+        printf("%s: %d\n", c, counter2[c]);
+    }
+    println("++++++++++");
+    foreach(c in counter) {
+        printf("%s: %d\n", c, counter[c]);
+    }
+    printf("DHANDLES: %d\n", dhandles);
+    printf("---------- RETURN: %d TIME: %d\n", $return, gettimeofday_ms() - @entry(gettimeofday_ms()));
+    delete counter;
+    delete counter2;
+}

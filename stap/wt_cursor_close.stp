@@ -1,0 +1,8 @@
+probe process("/home/ubuntu/mongo/mongod").function("__wt_cursor_close") {
+        uri = user_string($cursor->uri);
+        if(uri != "statistics:") {
+		println(uri);
+		print_ubacktrace();
+		println("---------------");
+        }
+}

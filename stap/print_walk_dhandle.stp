@@ -1,0 +1,6 @@
+probe process("/home/ubuntu/mongo/mongod").provider("evict_walk").mark("spin_unlocked") {
+    s = user_string($dhandle->name);
+    if(s !~ "^file:(WiredT|index)") {
+        println(s);
+    }
+}

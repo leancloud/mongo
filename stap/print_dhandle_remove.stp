@@ -1,0 +1,6 @@
+probe process("/home/ubuntu/mongo/mongod").function("__conn_dhandle_remove") {
+    s = user_string($session->dhandle->name);
+    println(s);
+    print_ubacktrace();
+    println("------------");
+}

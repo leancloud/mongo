@@ -1,0 +1,6 @@
+probe process("/home/ubuntu/mongo/mongod").provider("evict_walk").mark("no_eviction") {
+    s = user_string($dhandle->name);
+    if(s !~ "^file:(WiredT|index)") {
+        printf("%s = %d\n", s, $dhandle->session_inuse);
+    }
+}

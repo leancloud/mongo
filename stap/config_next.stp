@@ -1,0 +1,9 @@
+global hist;
+
+probe process("/home/ubuntu/mongo/mongod").function("__config_next").return {
+    hist <<< gettimeofday_us() - @entry(gettimeofday_us());
+}
+
+probe timer.s(1) {
+    print(@hist_log(hist));
+}

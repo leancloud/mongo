@@ -1,0 +1,14 @@
+global bt;
+
+probe process("/home/ubuntu/mongo/mongod").function("__wt_cursor_dhandle_incr_use"),
+      process("/home/ubuntu/mongo/mongod").function("__wt_cursor_dhandle_decr_use") {
+      bt[ubacktrace()]++;
+}
+
+probe end {
+     foreach(v = b in bt) {
+        print_stack(b);
+        println(v);
+        println(" ");
+     }
+}

@@ -1,0 +1,13 @@
+probe process("/home/ubuntu/mongo/mongod").function("__curfile_close").return {
+        s = @cast($cursor->session, "__wt_session_impl")->dhandle;
+        if(s != 0) {
+        if(@cast(s, "__wt_data_handle")->session_inuse == 0) {
+		uri = user_string($cursor->uri);
+		if(uri !~ "^(statistics:|file:WiredTiger)") {
+			println(uri);
+			print_ubacktrace();
+			println("---------------");
+		}
+         }
+         }
+}

@@ -1,0 +1,7 @@
+probe process("/home/ubuntu/mongo/mongod").function("__evict_clear_all_walks").return {
+    printf("TIME: %d\n", gettimeofday_us() - @entry(gettimeofday_us()));
+}
+
+probe process("/home/ubuntu/mongo/mongod").provider("evict_clear_all_walks").mark("dhandle_count") {
+    println($arg1);
+}

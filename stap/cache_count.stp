@@ -1,0 +1,5 @@
+global bt;
+
+probe process("/home/ubuntu/mongo/mongod").provider("mongo_wt_session").mark("cursor_cache_retire") {
+println($arg1);
+}
